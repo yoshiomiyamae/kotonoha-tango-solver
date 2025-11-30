@@ -68,7 +68,7 @@ export const computeMostLikelyKana = (dictionary: string[], confirmed: string[],
     };
 
     // 候補文字リストから正規表現パターンを構築し、辞書検索を行う
-    const searchWithCandidates = (candidates: string[]): string | undefined => {
+    const searchWithCandidates = (candidates: string[]): [string, string[]] => {
         const firstPosChars = candidates.filter(c => canBeFirstChar(c)).join('');
         const allPosChars = candidates.join('');
 
@@ -83,9 +83,9 @@ export const computeMostLikelyKana = (dictionary: string[], confirmed: string[],
         pattern += '$';
 
         const regex = new RegExp(pattern);
-        const matchingWords = filteredDictionary.filter(word => regex.test(word));
+        const matchingWords = [...new Set(filteredDictionary.filter(word => regex.test(word)))];
 
-        return matchingWords.length !== 0 ? matchingWords[0] : undefined;
+        return matchingWords.length !== 0 ? [matchingWords[0], matchingWords] : ['', []];
     };
 
     // 全候補文字のリスト（確定文字も含む）
@@ -93,7 +93,8 @@ export const computeMostLikelyKana = (dictionary: string[], confirmed: string[],
 
     // availableCharsが5文字以下の場合は、全てを候補として使用
     if (availableChars.length <= 5) {
-        return searchWithCandidates(availableChars);
+        const [mostLikely, likely] = searchWithCandidates(availableChars);
+        if (mostLikely) return { mostLikely, likely };
     }
 
     // 候補5文字の組み合わせのインデックスを保持
@@ -121,8 +122,8 @@ export const computeMostLikelyKana = (dictionary: string[], confirmed: string[],
         }
 
         if (valid) {
-            const result = searchWithCandidates(selectedCandidates);
-            if (result) return result;
+            const [mostLikely, likely] = searchWithCandidates(selectedCandidates);
+            if (mostLikely) return { mostLikely, likely };
         }
 
         // 次の組み合わせへ（右から左へインクリメント）
@@ -141,4 +142,6 @@ export const computeMostLikelyKana = (dictionary: string[], confirmed: string[],
             break;
         }
     }
+
+    return { mostLikely: '', likely: [] };
 }

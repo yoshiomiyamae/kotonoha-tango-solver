@@ -21,7 +21,7 @@ export const Dictionary = () => {
     const [radioSelection, setRadioSelection] = useState<RadioSelection>(INITIAL_RADIO);
     const [turn, setTurn] = useState<number>(0);
 
-    const mostLikely = useMemo(
+    const { mostLikely, likely } = useMemo(
         () => computeMostLikelyKana(dictionary, confirmed, included, excluded),
         [dictionary, confirmed, included, excluded]
     );
@@ -159,6 +159,12 @@ export const Dictionary = () => {
                             </>
                         )}
                     </div>
+                ))}
+            </div>
+            <div>
+                <span>ほかの候補</span>
+                {likely.filter(word => word !== mostLikely).map((word, idx) => (
+                    <div key={`likely-${idx}`}>{word}</div>
                 ))}
             </div>
             <button type="button" onClick={handleNext}>
