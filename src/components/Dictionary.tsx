@@ -5,13 +5,18 @@ import { $dictionary, computeMostLikelyKana } from "../stores/Dictionary";
 type SelectionType = 'confirmed' | 'included' | 'excluded';
 type RadioSelection = (SelectionType | null)[];
 
-const INITIAL_POSITIONS: string[] = ['', '', '', '', ''];
-const INITIAL_RADIO: RadioSelection = [null, null, null, null, null];
-const INITIAL_EXCLUDED_POSITIONS: string[][] = [[], [], [], [], []];
+const WORD_LENGTH = 5;
+const INITIAL_POSITIONS: string[] = Array(WORD_LENGTH).fill('');
+const INITIAL_RADIO: RadioSelection = Array(WORD_LENGTH).fill(null);
+const INITIAL_EXCLUDED_POSITIONS: string[][] = Array(WORD_LENGTH).fill([]).map(() => []);
 
 const removeFromArray = (arr: string[], item: string): string[] => {
     const index = arr.indexOf(item);
     return index !== -1 ? [...arr.slice(0, index), ...arr.slice(index + 1)] : arr;
+};
+
+const isCharConfirmedOrIncluded = (char: string, confirmed: string[], included: string[]): boolean => {
+    return included.includes(char) || confirmed.includes(char);
 };
 
 export const Dictionary = () => {
@@ -33,7 +38,7 @@ export const Dictionary = () => {
 
         const newRadioSelection = mostLikely.split('').map((char, i) => {
             if (confirmed[i] !== '') return 'confirmed';
-            if (included.includes(char) || confirmed.includes(char)) return 'included';
+            if (isCharConfirmedOrIncluded(char, confirmed, included)) return 'included';
             return null;
         }) as RadioSelection;
 
@@ -108,9 +113,6 @@ export const Dictionary = () => {
         setTurn(0);
     }, []);
 
-    const isCharAlreadyConstrained = (char: string) => {
-        return included.includes(char) || confirmed.includes(char);
-    };
 
     return (
         <div>
@@ -152,7 +154,7 @@ export const Dictionary = () => {
                                     onChange={() => handleRadioChange(index, 'included')}
                                 />
                                 含む
-                                {!isCharAlreadyConstrained(char) && (
+                                {!isCharConfirmedOrIncluded(char, confirmed, included) && (
                                     <>
                                         <input
                                             type="radio"
