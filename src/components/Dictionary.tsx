@@ -115,75 +115,119 @@ export const Dictionary = () => {
 
 
     return (
-        <div>
-            <div>ターン: {turn}</div>
-            <div>
-                <span>たぶんこれ:</span>
-                {mostLikely?.split('').map((char, index) => (
-                    <span
-                        key={`candidate-${index}`}
-                        style={{ color: confirmed[index] === char ? 'green' : 'black' }}
-                    >
-                        {char}
-                    </span>
-                ))}
+        <div className="uk-container uk-container-small" style={{ padding: '8px', maxHeight: '100vh', overflow: 'auto' }}>
+            {/* ヘッダー - コンパクト化 */}
+            <div className="uk-card uk-card-default uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
+                <div className="uk-flex uk-flex-between uk-flex-middle">
+                    <h1 className="uk-margin-remove" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+                        ことのは単語ソルバー
+                    </h1>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span className="uk-badge" style={{ fontSize: '0.9rem' }}>ターン {turn}</span>
+                        <button
+                            className="uk-button uk-button-danger uk-button-small"
+                            onClick={handleReset}
+                            style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                        >
+                            リセット
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div>
+
+            {/* 推奨単語カード - コンパクト化 */}
+            <div className="uk-card uk-card-primary uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
+                <div className="uk-text-center" style={{ fontSize: '1.8rem', letterSpacing: '0.4rem', fontWeight: 'bold' }}>
+                    {mostLikely?.split('').map((char, index) => (
+                        <span
+                            key={`candidate-${index}`}
+                            style={{
+                                color: confirmed[index] === char ? '#32d296' : 'white',
+                                textShadow: confirmed[index] === char ? '0 0 10px #32d296' : 'none'
+                            }}
+                        >
+                            {char}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            {/* 文字選択カード - コンパクト化 */}
+            <div className="uk-card uk-card-default uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
                 {mostLikely?.split('').map((char, index) => (
-                    <div key={`char-${index}`}>
-                        <span>{char}</span>
-                        {confirmed[index] === char ? (
-                            <span>（確定）</span>
-                        ) : (
-                            <>
-                                <input
-                                    type="radio"
-                                    style={{ backgroundColor: 'lightgreen' }}
-                                    name={`char-${index}`}
-                                    value="confirmed"
-                                    checked={radioSelection[index] === 'confirmed'}
-                                    onChange={() => handleRadioChange(index, 'confirmed')}
-                                />
-                                確定
-                                <input
-                                    type="radio"
-                                    style={{ backgroundColor: 'orange' }}
-                                    name={`char-${index}`}
-                                    value="included"
-                                    checked={radioSelection[index] === 'included'}
-                                    onChange={() => handleRadioChange(index, 'included')}
-                                />
-                                含む
-                                {!isCharConfirmedOrIncluded(char, confirmed, included) && (
-                                    <>
-                                        <input
-                                            type="radio"
-                                            style={{ backgroundColor: 'silver' }}
-                                            name={`char-${index}`}
-                                            value="excluded"
-                                            checked={radioSelection[index] === 'excluded'}
-                                            onChange={() => handleRadioChange(index, 'excluded')}
-                                        />
-                                        含まない
-                                    </>
-                                )}
-                            </>
-                        )}
+                    <div key={`char-${index}`} style={{ marginBottom: '6px' }}>
+                        <div className="uk-flex uk-flex-middle" style={{ gap: '8px' }}>
+                            <div style={{
+                                fontSize: '1.3rem',
+                                fontWeight: 'bold',
+                                minWidth: '32px',
+                                textAlign: 'center'
+                            }}>
+                                {char}
+                            </div>
+                            {confirmed[index] === char ? (
+                                <span className="uk-label uk-label-success" style={{ fontSize: '0.75rem' }}>確定</span>
+                            ) : (
+                                <div className="uk-button-group" style={{ flex: 1 }}>
+                                    <button
+                                        className={`uk-button uk-button-small ${radioSelection[index] === 'confirmed' ? 'uk-button-primary' : 'uk-button-default'}`}
+                                        onClick={() => handleRadioChange(index, 'confirmed')}
+                                        style={{ flex: 1, padding: '4px 8px', fontSize: '0.8rem' }}
+                                    >
+                                        確定
+                                    </button>
+                                    <button
+                                        className={`uk-button uk-button-small ${radioSelection[index] === 'included' ? 'uk-button-primary' : 'uk-button-default'}`}
+                                        onClick={() => handleRadioChange(index, 'included')}
+                                        style={{ flex: 1, padding: '4px 8px', fontSize: '0.8rem' }}
+                                    >
+                                        含む
+                                    </button>
+                                    {!isCharConfirmedOrIncluded(char, confirmed, included) && (
+                                        <button
+                                            className={`uk-button uk-button-small ${radioSelection[index] === 'excluded' ? 'uk-button-primary' : 'uk-button-default'}`}
+                                            onClick={() => handleRadioChange(index, 'excluded')}
+                                            style={{ flex: 1, padding: '4px 8px', fontSize: '0.8rem' }}
+                                        >
+                                            除外
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 ))}
             </div>
-            <div>
-                <span>ほかの候補</span>
-                {likely.filter(word => word !== mostLikely).map((word, idx) => (
-                    <div key={`likely-${idx}`}>{word}</div>
-                ))}
+
+            {/* 次へボタン */}
+            <div style={{ marginBottom: '8px' }}>
+                <button
+                    className="uk-button uk-button-primary uk-width-1-1"
+                    onClick={handleNext}
+                    disabled={!mostLikely || radioSelection.some(sel => sel === null)}
+                    style={{ padding: '12px 16px', fontSize: '1.1rem', fontWeight: 'bold' }}
+                >
+                    次へ
+                </button>
             </div>
-            <button type="button" onClick={handleNext}>
-                次へ
-            </button>
-            <button type="button" onClick={handleReset}>
-                リセット
-            </button>
+
+            {/* その他の候補 - コンパクト化 */}
+            {likely.filter(word => word !== mostLikely).length > 0 && (
+                <div className="uk-card uk-card-default uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
+                    <h4 className="uk-margin-remove-bottom" style={{ fontSize: '0.9rem', marginBottom: '6px' }}>ほかの候補</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                        {likely.filter(word => word !== mostLikely).slice(0, 6).map((word, idx) => (
+                            <div key={`likely-${idx}`} className="uk-card uk-card-secondary uk-card-body uk-padding-small" style={{
+                                fontSize: '0.85rem',
+                                padding: '4px 8px',
+                                flex: '0 0 calc(50% - 2px)'
+                            }}>
+                                {word}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
