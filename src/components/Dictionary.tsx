@@ -7,6 +7,7 @@ type RadioSelection = (SelectionType | null)[];
 
 const INITIAL_POSITIONS: string[] = ['', '', '', '', ''];
 const INITIAL_RADIO: RadioSelection = [null, null, null, null, null];
+const INITIAL_EXCLUDED_POSITIONS: string[][] = [[], [], [], [], []];
 
 const removeFromArray = (arr: string[], item: string): string[] => {
     const index = arr.indexOf(item);
@@ -18,12 +19,13 @@ export const Dictionary = () => {
     const [confirmed, setConfirmed] = useState<string[]>(INITIAL_POSITIONS);
     const [included, setIncluded] = useState<string[]>([]);
     const [excluded, setExcluded] = useState<string[]>([]);
+    const [excludedPositions, setExcludedPositions] = useState<string[][]>(INITIAL_EXCLUDED_POSITIONS);
     const [radioSelection, setRadioSelection] = useState<RadioSelection>(INITIAL_RADIO);
     const [turn, setTurn] = useState<number>(0);
 
     const { mostLikely, likely } = useMemo(
-        () => computeMostLikelyKana(dictionary, confirmed, included, excluded),
-        [dictionary, confirmed, included, excluded]
+        () => computeMostLikelyKana(dictionary, confirmed, included, excluded, excludedPositions),
+        [dictionary, confirmed, included, excluded, excludedPositions]
     );
 
     useEffect(() => {
@@ -44,6 +46,7 @@ export const Dictionary = () => {
         let newConfirmed = [...confirmed];
         let newIncluded = [...included];
         let newExcluded = [...excluded];
+        let newExcludedPositions = excludedPositions.map(pos => [...pos]);
 
         mostLikely.split('').forEach((char, i) => {
             const selection = radioSelection[i];
@@ -63,6 +66,10 @@ export const Dictionary = () => {
                         newConfirmed[i] = '';
                     }
                     newExcluded = removeFromArray(newExcluded, char);
+                    // 「含む」を選んだ位置には、その文字は来ない
+                    if (!newExcludedPositions[i].includes(char)) {
+                        newExcludedPositions[i].push(char);
+                    }
                     break;
                 case 'excluded':
                     if (!newExcluded.includes(char)) {
@@ -79,9 +86,10 @@ export const Dictionary = () => {
         setConfirmed(newConfirmed);
         setIncluded(newIncluded);
         setExcluded(newExcluded);
+        setExcludedPositions(newExcludedPositions);
         setRadioSelection(newConfirmed.map(c => c !== '' ? 'confirmed' : null) as RadioSelection);
         setTurn(turn + 1);
-    }, [radioSelection, mostLikely, confirmed, included, excluded, turn]);
+    }, [radioSelection, mostLikely, confirmed, included, excluded, excludedPositions, turn]);
 
     const handleRadioChange = useCallback((index: number, value: SelectionType) => {
         setRadioSelection(prev => {
@@ -95,6 +103,7 @@ export const Dictionary = () => {
         setConfirmed(INITIAL_POSITIONS);
         setIncluded([]);
         setExcluded([]);
+        setExcludedPositions(INITIAL_EXCLUDED_POSITIONS);
         setRadioSelection(INITIAL_RADIO);
         setTurn(0);
     }, []);

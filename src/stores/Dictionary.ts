@@ -25,9 +25,16 @@ export const $dictionary = atom<string[]>(await loadDictionary());
  * @param confirmed 5文字の文字列の配列で、各文字はその位置に確定している文字を表す。未確定の位置は空文字列。
  * @param included 含まれているが位置が未確定な文字の配列。
  * @param excluded 含まれていない文字の配列。
+ * @param excludedPositions 各位置で除外する文字のリスト。5つの配列の配列。
  * @returns 最も可能性の高い5文字の仮名文字列。
  */
-export const computeMostLikelyKana = (dictionary: string[], confirmed: string[], included: string[], excluded: string[]) => {
+export const computeMostLikelyKana = (
+    dictionary: string[],
+    confirmed: string[],
+    included: string[],
+    excluded: string[],
+    excludedPositions: string[][] = [[], [], [], [], []]
+) => {
     const filterByConfirmed = (word: string) => {
         for (let i = 0; i < 5; i++) {
             if (confirmed[i] !== '' && word[i] !== confirmed[i]) {
@@ -52,7 +59,19 @@ export const computeMostLikelyKana = (dictionary: string[], confirmed: string[],
         }
         return true;
     }
-    const filteredDictionary = dictionary.filter(filterByConfirmed).filter(filterByIncluded).filter(filterByExcluded);
+    const filterByExcludedPositions = (word: string) => {
+        for (let i = 0; i < 5; i++) {
+            if (excludedPositions[i].includes(word[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    const filteredDictionary = dictionary
+        .filter(filterByConfirmed)
+        .filter(filterByIncluded)
+        .filter(filterByExcluded)
+        .filter(filterByExcludedPositions);
     const joinedEntries = filteredDictionary.join('');
     const characterCount: Record<string, number> = {};
     for (const char of joinedEntries) {
