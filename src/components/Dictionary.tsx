@@ -27,33 +27,42 @@ export const Dictionary = () => {
     const [excludedPositions, setExcludedPositions] = useState<string[][]>(INITIAL_EXCLUDED_POSITIONS);
     const [radioSelection, setRadioSelection] = useState<RadioSelection>(INITIAL_RADIO);
     const [turn, setTurn] = useState<number>(0);
+    const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
 
     const { mostLikely, likely } = useMemo(
         () => computeMostLikelyKana(dictionary, confirmed, included, excluded, excludedPositions),
         [dictionary, confirmed, included, excluded, excludedPositions]
     );
 
-    useEffect(() => {
-        if (!mostLikely) return;
+    // 表示する単語を選択（selectedCandidateがあればそれ、なければmostLikely）
+    const displayWord = selectedCandidate || mostLikely;
 
-        const newRadioSelection = mostLikely.split('').map((char, i) => {
+    useEffect(() => {
+        // mostLikelyが変わったらselectedCandidateをリセット
+        setSelectedCandidate(null);
+    }, [mostLikely]);
+
+    useEffect(() => {
+        if (!displayWord) return;
+
+        const newRadioSelection = displayWord.split('').map((char, i) => {
             if (confirmed[i] !== '') return 'confirmed';
             if (isCharConfirmedOrIncluded(char, confirmed, included)) return 'included';
             return null;
         }) as RadioSelection;
 
         setRadioSelection(newRadioSelection);
-    }, [mostLikely, confirmed, included]);
+    }, [displayWord, confirmed, included]);
 
     const handleNext = useCallback(() => {
-        if (!mostLikely || radioSelection.some(sel => sel === null)) return;
+        if (!displayWord || radioSelection.some(sel => sel === null)) return;
 
         let newConfirmed = [...confirmed];
         let newIncluded = [...included];
         let newExcluded = [...excluded];
         let newExcludedPositions = excludedPositions.map(pos => [...pos]);
 
-        mostLikely.split('').forEach((char, i) => {
+        displayWord.split('').forEach((char, i) => {
             const selection = radioSelection[i];
             if (!selection) return;
 
@@ -94,7 +103,8 @@ export const Dictionary = () => {
         setExcludedPositions(newExcludedPositions);
         setRadioSelection(newConfirmed.map(c => c !== '' ? 'confirmed' : null) as RadioSelection);
         setTurn(turn + 1);
-    }, [radioSelection, mostLikely, confirmed, included, excluded, excludedPositions, turn]);
+        setSelectedCandidate(null); // 次へを押したら選択をリセット
+    }, [radioSelection, displayWord, confirmed, included, excluded, excludedPositions, turn]);
 
     const handleRadioChange = useCallback((index: number, value: SelectionType) => {
         setRadioSelection(prev => {
@@ -111,6 +121,11 @@ export const Dictionary = () => {
         setExcludedPositions(INITIAL_EXCLUDED_POSITIONS);
         setRadioSelection(INITIAL_RADIO);
         setTurn(0);
+        setSelectedCandidate(null);
+    }, []);
+
+    const handleCandidateClick = useCallback((word: string) => {
+        setSelectedCandidate(word);
     }, []);
 
 
@@ -138,7 +153,7 @@ export const Dictionary = () => {
             {/* 推奨単語カード - コンパクト化 */}
             <div className="uk-card uk-card-primary uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
                 <div className="uk-text-center" style={{ fontSize: '1.8rem', letterSpacing: '0.4rem', fontWeight: 'bold' }}>
-                    {mostLikely?.split('').map((char, index) => (
+                    {displayWord?.split('').map((char, index) => (
                         <span
                             key={`candidate-${index}`}
                             style={{
@@ -154,7 +169,7 @@ export const Dictionary = () => {
 
             {/* 文字選択カード - コンパクト化 */}
             <div className="uk-card uk-card-default uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
-                {mostLikely?.split('').map((char, index) => (
+                {displayWord?.split('').map((char, index) => (
                     <div key={`char-${index}`} style={{ marginBottom: '6px' }}>
                         <div className="uk-flex uk-flex-middle" style={{ gap: '8px' }}>
                             <div style={{
@@ -204,26 +219,32 @@ export const Dictionary = () => {
                 <button
                     className="uk-button uk-button-primary uk-width-1-1"
                     onClick={handleNext}
-                    disabled={!mostLikely || radioSelection.some(sel => sel === null)}
+                    disabled={!displayWord || radioSelection.some(sel => sel === null)}
                     style={{ padding: '12px 16px', fontSize: '1.1rem', fontWeight: 'bold' }}
                 >
                     次へ
                 </button>
             </div>
 
-            {/* その他の候補 - コンパクト化 */}
-            {likely.filter(word => word !== mostLikely).length > 0 && (
+            {/* その他の候補 - ボタン化 */}
+            {likely.filter(word => word !== displayWord).length > 0 && (
                 <div className="uk-card uk-card-default uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
                     <h4 className="uk-margin-remove-bottom" style={{ fontSize: '0.9rem', marginBottom: '6px' }}>ほかの候補</h4>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                        {likely.filter(word => word !== mostLikely).slice(0, 6).map((word, idx) => (
-                            <div key={`likely-${idx}`} className="uk-card uk-card-secondary uk-card-body uk-padding-small" style={{
-                                fontSize: '0.85rem',
-                                padding: '4px 8px',
-                                flex: '0 0 calc(50% - 2px)'
-                            }}>
+                        {likely.filter(word => word !== displayWord).slice(0, 6).map((word, idx) => (
+                            <button
+                                key={`likely-${idx}`}
+                                className="uk-button uk-button-secondary uk-button-small"
+                                onClick={() => handleCandidateClick(word)}
+                                style={{
+                                    fontSize: '0.85rem',
+                                    padding: '4px 8px',
+                                    flex: '0 0 calc(50% - 2px)',
+                                    cursor: 'pointer'
+                                }}
+                            >
                                 {word}
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>
