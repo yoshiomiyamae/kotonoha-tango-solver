@@ -121,7 +121,28 @@ export const computeMostLikelyKana = (
         const regex = new RegExp(pattern);
         const matchingWords = [...new Set(filteredDictionary.filter(word => regex.test(word)))];
 
-        return matchingWords.length !== 0 ? [matchingWords[0], matchingWords] : ['', []];
+        if (matchingWords.length === 0) {
+            return ['', []];
+        }
+
+        // 重複文字数をカウントする関数
+        const countDuplicates = (word: string): number => {
+            const charSet = new Set(word);
+            return word.length - charSet.size;
+        };
+
+        // 重複文字が少ない順にソートし、同数の場合は元のindex順
+        const sortedWords = matchingWords
+            .map((word, index) => ({ word, duplicates: countDuplicates(word), index }))
+            .sort((a, b) => {
+                if (a.duplicates !== b.duplicates) {
+                    return a.duplicates - b.duplicates;
+                }
+                return a.index - b.index;
+            })
+            .map(item => item.word);
+
+        return [sortedWords[0], sortedWords];
     };
 
     // availableCharsがWORD_LENGTH文字以下の場合は、全てを候補として使用
