@@ -95,10 +95,19 @@ export const computeMostLikelyKana = (
     excluded: string[],
     excludedPositions: string[][] = [[], [], [], [], []]
 ) => {
+    // confirmedとincludedに含まれる文字のセットを作成
+    const confirmedAndIncludedChars = new Set([
+        ...confirmed.filter(c => c !== ''),
+        ...included
+    ]);
+
+    // excludedからconfirmedとincludedの文字を除外
+    const cleanedExcluded = excluded.filter(char => !confirmedAndIncludedChars.has(char));
+
     const filteredDictionary = dictionary
         .filter(createConfirmedFilter(confirmed))
         .filter(createIncludedFilter(included))
-        .filter(createExcludedFilter(excluded))
+        .filter(createExcludedFilter(cleanedExcluded))
         .filter(createExcludedPositionsFilter(excludedPositions));
 
     const availableChars = getCharactersByFrequency(filteredDictionary);

@@ -110,9 +110,33 @@ export const Dictionary = () => {
         setRadioSelection(prev => {
             const newSelection = [...prev];
             newSelection[index] = value;
+
+            // 同じ文字が複数出現する場合の処理
+            if (displayWord) {
+                const char = displayWord[index];
+
+                // 確定または含むを選択した場合、同じ文字の他の位置を含むに変更
+                if (value === 'confirmed' || value === 'included') {
+                    displayWord.split('').forEach((c, i) => {
+                        if (c === char && i !== index && confirmed[i] !== char) {
+                            newSelection[i] = 'included';
+                        }
+                    });
+                }
+
+                // 除外を選択した場合、同じ文字の他の位置も除外に変更
+                if (value === 'excluded') {
+                    displayWord.split('').forEach((c, i) => {
+                        if (c === char && i !== index && confirmed[i] !== char) {
+                            newSelection[i] = 'excluded';
+                        }
+                    });
+                }
+            }
+
             return newSelection;
         });
-    }, []);
+    }, [displayWord, confirmed]);
 
     const handleReset = useCallback(() => {
         setConfirmed(INITIAL_POSITIONS);
