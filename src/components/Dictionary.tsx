@@ -119,7 +119,10 @@ export const Dictionary = () => {
                 if (value === 'confirmed' || value === 'included') {
                     displayWord.split('').forEach((c, i) => {
                         if (c === char && i !== index && confirmed[i] !== char) {
-                            newSelection[i] = 'included';
+                            // すでに確定されている位置は変更しない
+                            if (newSelection[i] !== 'confirmed') {
+                                newSelection[i] = 'included';
+                            }
                         }
                     });
                 }
@@ -128,7 +131,10 @@ export const Dictionary = () => {
                 if (value === 'excluded') {
                     displayWord.split('').forEach((c, i) => {
                         if (c === char && i !== index && confirmed[i] !== char) {
-                            newSelection[i] = 'excluded';
+                            // すでに確定されている位置は変更しない
+                            if (newSelection[i] !== 'confirmed') {
+                                newSelection[i] = 'excluded';
+                            }
                         }
                     });
                 }
