@@ -13,8 +13,10 @@ This is a Kotonoha Tango solver - a word puzzle solver application for Japanese 
 - `npm run build` or `bun run build` - Build production site to `./dist/`
 - `npm run preview` or `bun run preview` - Preview production build locally
 - `npm run astro ...` - Run Astro CLI commands (e.g., `astro check` for type checking)
+- `bun test` - Run unit tests ([src/stores/solver.test.ts](src/stores/solver.test.ts))
+- `bun run simulate [games]` - Measure solver strength by simulating games against the whole dictionary (default 200). Run this after any change to the solver and check that average turns / 6-turn clear rate did not regress.
 
-Note: This project uses `bun.lock`, indicating Bun is the preferred package manager, though npm commands also work.
+Note: This project uses `bun.lock`, indicating Bun is the preferred package manager, though npm commands also work. `astro check` requires TypeScript 6.x - TypeScript 7's native compiler does not yet expose the API the Astro language server needs.
 
 ## Architecture
 
@@ -26,34 +28,54 @@ Note: This project uses `bun.lock`, indicating Bun is the preferred package mana
 
 ### Application Flow
 
-1. **Data Loading** ([src/stores/Dictionary.ts](src/stores/Dictionary.ts))
-   - Dictionary is fetched from external CSV on initialization
-   - CSV contains Japanese words in kana format
+1. **Data Loading** ([src/stores/dictionarySource.ts](src/stores/dictionarySource.ts), [src/stores/Dictionary.ts](src/stores/Dictionary.ts))
+   - `dictionarySource.ts` owns the CSV URL and `fetchDictionary()`; both the app and `scripts/simulate.ts` go through it, so the one external dependency has one home
+   - CSV columns are `表記,読み`; only the reading is used
    - Hiragana characters are automatically converted to katakana
-   - Data is stored in a nanostores atom (`$dictionary`)
+   - Entries that are not exactly 5 characters are dropped, and homophones are de-duplicated (the raw CSV has ~10.7k rows but only ~7.9k distinct readings; keeping duplicates skews frequency counts)
+   - `$dictionary` starts **empty** and is filled asynchronously; `$dictionaryError` holds a load failure. Do not reintroduce a top-level `await` here — `client:load` cannot hydrate until the module finishes evaluating, so it would block first paint on the fetch and a network failure would stop the component mounting at all.
 
-2. **Solver Algorithm** ([src/stores/Dictionary.ts:30-86](src/stores/Dictionary.ts#L30-L86))
-   - `computeMostLikelyKana` takes three constraint types:
-     - `confirmed`: Characters in known positions (e.g., position 2 is 'カ')
-     - `included`: Characters that exist somewhere in the word
-     - `excluded`: Characters that don't appear in the word
-   - Algorithm filters dictionary by constraints, then:
-     - Counts character frequency across matching words
-     - Tries combinations of most frequent characters
-     - Returns first valid word with all unique characters
+2. **Solver Algorithm** ([src/stores/solver.ts](src/stores/solver.ts))
+   - State is the **history of guesses and their colors**, not a set of constraints:
+     `Guess = { word, marks }` where each mark is `hit` (green) / `blow` (yellow) / `miss` (gray)
+   - `computeFeedback(guess, answer)` reproduces the game's coloring, including duplicate-character
+     counting (greens consume occurrences first, extra copies come back as `miss`)
+   - `filterCandidates` keeps words `w` such that `computeFeedback(guess, w) === marks` for every past
+     turn. Because scoring and filtering share one function, they can never disagree — a set-based
+     `included`/`excluded` model cannot express "exactly one of this character" and silently drops the
+     true answer when a character appears both green/yellow and gray in one guess.
+   - `rankGuesses` scores every pooled word by the **expected number of remaining candidates**
+     (`Σ bucket² / N` over feedback patterns) and returns them sorted. `suggest` takes `[0]` as the
+     recommendation and the best candidates from the same ranking as `likely` — one ranking, so the
+     alternatives shown are ordered by the same metric as the recommendation.
+   - Words that cannot be the answer are allowed in the guess pool: when candidates share four
+     characters, one word that splits them beats guessing them one at a time.
+   - Pool width comes from `WORK_BUDGET / candidates.length`, not a candidate-count threshold, so
+     cost per turn is bounded and monotonic. When the computed width reaches the dictionary size the
+     pool *is* the whole dictionary, so full-probe behaviour falls out without a branch.
+   - The empty-history ranking is memoized per dictionary (`WeakMap`) rather than hardcoded. The CSV is
+     unpinned and refetched every load, so a baked-in opener would silently rot when it changes.
+   - Words are encoded to numeric arrays (`encode`) before the hot loops; string indexing in the inner
+     loop is ~20x slower and pushes a turn past several seconds. The positional frequency table is a
+     flat `Int32Array` indexed by char id for the same reason (~12x faster than `Map<string, number>`).
 
 3. **UI Component** ([src/components/Dictionary.tsx](src/components/Dictionary.tsx))
    - React component using nanostores hooks (`useStore`)
-   - Displays most likely word suggestion
-   - For each character position, provides radio buttons:
-     - 確定 (confirmed) - character is in correct position
-     - 含む (included) - character exists but wrong position
-     - 含まない (excluded) - character doesn't appear in word
-   - "次へ" (Next) button processes selections and updates constraints
-   - Once a character is confirmed, its position locks (no more radio buttons)
+   - Displays the recommended word, the turn number, and the remaining candidate count
+   - For each character position, provides three buttons matching the game's colors:
+     - 確定 (hit) - character is in correct position
+     - 含む (blow) - character exists but wrong position
+     - 除外 (miss) - character does not appear (at this position / any more)
+   - Each position is recorded **independently**. Do not force other positions with the same character
+     to the same mark: that is exactly the information that identifies duplicate characters.
+   - "次へ" (Next) appends `{ word, marks }` to the history; "戻る" pops the last turn
+   - Positions already confirmed by a past `hit` are pre-filled and locked
+   - If the history admits no candidate, an error card tells the user to undo
 
 ### File Structure
 ```
+scripts/
+└── simulate.ts              # Solver strength measurement
 src/
 ├── pages/
 │   └── index.astro          # Entry point, renders Dictionary component
@@ -62,12 +84,20 @@ src/
 ├── components/
 │   └── Dictionary.tsx       # Main UI component (React)
 └── stores/
-    └── Dictionary.ts        # State management & solver logic
+    ├── Dictionary.ts        # Dictionary state (nanostores atoms)
+    ├── dictionarySource.ts  # CSV URL + fetch
+    ├── solver.ts            # Pure solver logic (no dependencies, no I/O)
+    └── solver.test.ts       # Unit tests
 ```
 
 ### Key Implementation Details
 
 - **Astro Islands**: The `Dictionary` component uses `client:load` directive in [index.astro](src/pages/index.astro) to hydrate immediately on page load
-- **State Synchronization**: Radio selections are tracked separately from constraint state to handle UI transitions when clicking "Next"
-- **Character Uniqueness**: The solver filters for words with all unique characters (no repeated katakana)
-- **External Dependency**: Dictionary data source is hardcoded to GitHub raw URL: `https://raw.githubusercontent.com/plumchloride/tango/refs/heads/main/kotonoha-tango/public/data/Q_fil_ippan.csv`
+- **Pure Core**: [solver.ts](src/stores/solver.ts) has no imports and does no I/O, so it is testable and runnable standalone. Keep fetching in [dictionarySource.ts](src/stores/dictionarySource.ts) and nanostores in [Dictionary.ts](src/stores/Dictionary.ts), and do not re-export solver through them — an `import { suggest } from './Dictionary'` would drag the network layer into a pure-function import.
+- **External Dependency**: Dictionary data source is hardcoded to a GitHub raw URL in [dictionarySource.ts](src/stores/dictionarySource.ts). The path contains `refs/heads/main`, so it is unpinned and can change under the app.
+
+### Current Solver Strength
+
+Measured with `bun run simulate` (200 games, seeded): **4.780 turns on average, 96.0% solved within 6 turns, 0 unsolved.** Timing: ~180ms once per dictionary for the opening ranking, then at most ~270ms per turn. Treat these as the regression baseline.
+
+The solve still runs synchronously on the main thread, so those milliseconds are UI jank. `solver.ts` is import-free and I/O-free specifically so it can move into a Web Worker when that becomes worth doing.
