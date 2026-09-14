@@ -62,28 +62,33 @@ export const Dictionary = () => {
     }, []);
 
     return (
-        <div className="uk-container uk-container-small" style={{ padding: '8px', maxHeight: '100vh', overflow: 'auto' }}>
-            {/* ヘッダー - コンパクト化 */}
+        <div className="uk-container uk-container-small" style={{ padding: '8px' }}>
+            {/* ヘッダー - 狭い画面ではタイトルと操作を2段に分ける */}
             <div className="uk-card uk-card-default uk-card-body uk-padding-small" style={{ marginBottom: '8px' }}>
-                <div className="uk-flex uk-flex-between uk-flex-middle">
-                    <h1 className="uk-margin-remove" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                        ことのは単語ソルバー
-                    </h1>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span className="uk-badge" style={{ fontSize: '0.9rem' }}>ターン {history.length}</span>
-                        <span className="uk-badge" style={{ fontSize: '0.9rem' }}>残り {remaining}</span>
+                <h1 className="uk-margin-remove" style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+                    ことのは単語ソルバー
+                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span className="uk-label" style={{ fontSize: '0.75rem' }}>ターン {history.length}</span>
+                        <span className="uk-label" style={{ fontSize: '0.75rem' }}>
+                            残り {dictionary.length === 0 ? '—' : remaining}
+                        </span>
+                    </div>
+                    {/* 折り返しても右端に寄るように、間を auto マージンで埋める */}
+                    <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
                         <button
                             className="uk-button uk-button-default uk-button-small"
                             onClick={handleUndo}
                             disabled={history.length === 0}
-                            style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                            style={{ padding: '4px 12px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
                         >
                             戻る
                         </button>
                         <button
                             className="uk-button uk-button-danger uk-button-small"
                             onClick={handleReset}
-                            style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                            style={{ padding: '4px 12px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
                         >
                             リセット
                         </button>

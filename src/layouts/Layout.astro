@@ -25,9 +25,17 @@
 		margin: 0;
 		padding: 0;
 		width: 100%;
-		height: 100vh;
-		overflow: hidden;
 		background-color: #f8f8f8;
-		-webkit-overflow-scrolling: touch;
+	}
+
+	/*
+	 * 高さを固定して overflow: hidden にはしない。iOS Safari の 100vh は
+	 * ツールバーを隠した状態の高さ、つまり実際の表示領域より大きいので、
+	 * ページ下端がツールバーの裏に入って届かなくなる。
+	 * 実表示領域に追従する dvh を使い、素直にドキュメントをスクロールさせる。
+	 */
+	body {
+		min-height: 100vh;
+		min-height: 100dvh;
 	}
 </style>
