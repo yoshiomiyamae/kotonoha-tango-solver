@@ -1,5 +1,5 @@
 /**
- * 公開された過去の正解でソルバーを時系列評価する。当日行は含めない。
+ * 公開された過去の正解でソルバーを時系列評価する。最新2日（当日・翌日）は含めない。
  * bun scripts/evaluateHistory.ts [件数]
  */
 import { parseCompletedAnswers } from '../src/stores/analysis';

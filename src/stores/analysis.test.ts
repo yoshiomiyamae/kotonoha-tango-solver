@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { parseCompletedAnswers } from './analysis';
 
-test('当日行や集計のない行を過去の正解として使わない', () => {
+test('最新2日（当日と翌日）や集計のない行を過去の正解として使わない', () => {
     const csv = [
         'day,tango_title,tango_pro,analysis_ver,no_ans,no_history,ignore_ans,player',
         '1,題名,ショウイン,4,0,0,0,120',
@@ -11,6 +11,5 @@ test('当日行や集計のない行を過去の正解として使わない', ()
     ].join('\n');
     expect(parseCompletedAnswers(csv)).toEqual([
         { day: 1, word: 'ショウイン' },
-        { day: 3, word: 'サクラモチ' },
     ]);
 });

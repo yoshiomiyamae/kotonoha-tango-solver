@@ -15,7 +15,7 @@ This is a Kotonoha Tango solver - a word puzzle solver application for Japanese 
 - `npm run astro ...` - Run Astro CLI commands (e.g., `astro check` for type checking)
 - `bun test` - Run unit tests ([src/stores/solver.test.ts](src/stores/solver.test.ts))
 - `bun run simulate [games]` - Measure solver strength by simulating games against the whole dictionary (default 200). Run this after any change to the solver and check that average turns / 6-turn clear rate did not regress.
-- `bun run evaluate:history [games]` - Evaluate against the last completed daily answers from the public analysis CSV (default 200). The parser excludes the latest row even when it contains an answer, so today's answer is never used.
+- `bun run evaluate:history [games]` - Evaluate against the last completed daily answers from the public analysis CSV (default 200). The parser conservatively excludes the two newest days, since the CSV may already contain both today's and tomorrow's answers.
 
 Note: This project uses `bun.lock`, indicating Bun is the preferred package manager, though npm commands also work. `astro check` requires TypeScript 6.x - TypeScript 7's native compiler does not yet expose the API the Astro language server needs.
 
@@ -112,4 +112,4 @@ Measured with `bun run simulate` (200 games, seeded, 2026-09-18): **4.760 turns 
 
 The solve still runs synchronously on the main thread, so those milliseconds are UI jank. `solver.ts` is import-free and I/O-free specifically so it can move into a Web Worker when that becomes worth doing.
 
-The public `analysis.csv` lists historical answers and also has a row for the current day. Never use its last row for training, evaluation, or a user-facing suggestion. Past answers can repeat, so do not remove them from the candidate pool. In a chronological test of the last 200 completed days (days 1502–1701), the new two-step solver averaged **4.910 turns with 95.0% solved within six**, versus 4.960 turns and 92.0% for the preceding one-step solver. An experimental bonus for answers seen on earlier days performed worse (4.995 turns and 91.0%), so it is not part of the product.
+The public `analysis.csv` lists historical answers and may already have entries for today and tomorrow. Exclude the two newest days from training and evaluation, regardless of player counts. Past answers can repeat, so do not remove them from the candidate pool. In a test of the last 200 safely completed days (days 1501–1700), the new two-step solver averaged **4.905 turns with 95.0% solved within six**, versus 4.955 turns and 92.0% for the preceding one-step solver. An experimental bonus for answers seen on earlier days performed worse in a preliminary test, so it is not part of the product.
