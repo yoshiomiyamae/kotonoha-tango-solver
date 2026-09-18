@@ -102,8 +102,39 @@ describe('confirmedFromHistory', () => {
 describe('rankGuesses', () => {
     const best = (dictionary: string[], candidates: string[]) => rankGuesses(dictionary, candidates)[0]!.word;
 
+    test('同じ分割でも、その後を短く解ける探索語を選ぶ', () => {
+        const candidates = ['チョウザイ', 'チョウセイ', 'チョウゼイ', 'チョウテイ',
+            'チョウアイ', 'チョウレイ', 'チョウヘイ', 'チョウケイ', 'チョウルイ', 'チョウエイ'];
+        const dictionary = ['エアメール', 'ムカエザケ', 'テイレベル', 'マゼアワセ', ...candidates];
+        const ranked = rankGuesses(dictionary, candidates);
+        const greedy = ranked.find(entry => entry.word === 'エアメール')!;
+        // 次の1手の期待残候補数は同じでも、先読みした手数には差がある。
+        expect(ranked[0]!.expected).toBe(greedy.expected);
+        expect(ranked[0]!.expectedTurns!).toBeLessThan(greedy.expectedTurns!);
+    });
+
     test('候補が1つならそれを返す', () => {
         expect(best(['アイウエオ', 'カキクケコ'], ['アイウエオ'])).toBe('アイウエオ');
+    });
+
+    test('先読みの手数が、小辞書の全探索と一致する', () => {
+        const candidates = ['サクラモチ', 'サクラモメ', 'サクラモリ', 'サクラモル'];
+        const dictionary = [...candidates, 'チメリルナ', 'アイウエオ'];
+        // ビットマスクやメモ化を使わない参照実装。正解の枝では追加手数は不要。
+        const turns = (word: string, answers: string[]): number => {
+            const groups = new Map<string, string[]>();
+            for (const answer of answers) {
+                if (answer === word) continue;
+                const key = computeFeedback(word, answer).join(',');
+                groups.set(key, [...(groups.get(key) ?? []), answer]);
+            }
+            if ([...groups.values()].some(group => group.length === answers.length)) return Infinity;
+            return 1 + [...groups.values()].reduce((sum, group) => sum + group.length *
+                Math.min(...dictionary.map(next => turns(next, group))), 0) / answers.length;
+        };
+        for (const entry of rankGuesses(dictionary, candidates)) {
+            expect(entry.expectedTurns).toBe(turns(entry.word, candidates));
+        }
     });
 
     test('候補を一度に切り分けられる探索専用語を選ぶ', () => {

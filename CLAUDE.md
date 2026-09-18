@@ -48,6 +48,11 @@ Note: This project uses `bun.lock`, indicating Bun is the preferred package mana
      (`Σ bucket² / N` over feedback patterns) and returns them sorted. `suggest` takes `[0]` as the
      recommendation and the best candidates from the same ranking as `likely` — one ranking, so the
      alternatives shown are ordered by the same metric as the recommendation.
+   - With 10 or fewer candidates, `rankEndgame` instead minimizes expected turns to solve,
+     assuming equally likely answers. It memoizes candidate subsets and merges equivalent feedback
+     partitions. Solved branches cost no additional guesses; non-progressing guesses are excluded.
+     Expected remaining candidates breaks ties. This avoids choosing equally informative probes
+     solely by CSV order when their later branches have different solution costs.
    - Words that cannot be the answer are allowed in the guess pool: when candidates share four
      characters, one word that splits them beats guessing them one at a time.
    - Pool width comes from `WORK_BUDGET / candidates.length`, not a candidate-count threshold, so
@@ -98,6 +103,6 @@ src/
 
 ### Current Solver Strength
 
-Measured with `bun run simulate` (200 games, seeded): **4.780 turns on average, 96.0% solved within 6 turns, 0 unsolved.** Timing: ~180ms once per dictionary for the opening ranking, then at most ~270ms per turn. Treat these as the regression baseline.
+Measured with `bun run simulate` (200 games, seeded, 2026-09-18): **4.775 turns on average, 96.0% solved within 6 turns, 0 unsolved.** Timing on the development machine: 173ms for the opening ranking, then at most 218ms per turn. These sampled results are a regression baseline, not a guarantee for every answer. `チョウレイ` now takes 6 turns instead of 7.
 
 The solve still runs synchronously on the main thread, so those milliseconds are UI jank. `solver.ts` is import-free and I/O-free specifically so it can move into a Web Worker when that becomes worth doing.

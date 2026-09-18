@@ -22,6 +22,8 @@ export type ScoredGuess = {
     word: string;
     /** この語を出したときに残る候補数の期待値。小さいほど良い。 */
     expected: number;
+    /** 終盤のみ計算する、正解までの期待手数。 */
+    expectedTurns?: number;
 };
 
 export type Suggestion = {
@@ -43,6 +45,8 @@ const MIN_POOL = 200;
 const CANDIDATE_QUOTA = 50;
 /** UIに渡す候補リストの長さ（推奨語1つ＋「ほかの候補」） */
 const LIKELY_COUNT = 7;
+/** 部分集合の先読みは指数的に増えるため、小さい終盤に限定する。 */
+const ENDGAME_LIMIT = 10;
 
 const HIRAGANA_TO_KATAKANA_OFFSET = 0x60;
 const PATTERN_COUNT = 3 ** WORD_LENGTH;
@@ -224,6 +228,56 @@ const expectedRemaining = (guess: Uint16Array, candidates: Uint16Array[]): numbe
 };
 
 /**
+ * 全候補を等確率とし、正解までの総手数を最小化する終盤探索。
+ * 部分集合をビットマスクでメモ化。同じ分割を作る語はまとめて評価する。
+ * 全一致の枝は終了なので除外し、候補が減らない手は再帰させない。
+ */
+const rankEndgame = (scored: ScoredGuess[], candidates: Uint16Array[]): void => {
+    const full = (1 << candidates.length) - 1;
+    const partitions = new Map<string, number[]>();
+    const byWord = new Map<string, number[]>();
+    for (const { word } of scored) {
+        const groups = new Map<number, number>();
+        const guess = encode(word);
+        for (let i = 0; i < candidates.length; i++) {
+            const code = feedbackCodeOf(guess, candidates[i]!);
+            if (code === PATTERN_COUNT - 1) continue;
+            groups.set(code, (groups.get(code) ?? 0) | (1 << i));
+        }
+        const masks = [...groups.values()].sort((a, b) => a - b);
+        const key = masks.join(',');
+        if (!partitions.has(key)) partitions.set(key, masks);
+        byWord.set(word, partitions.get(key)!);
+    }
+    const sizes = new Uint8Array(full + 1);
+    for (let mask = 1; mask <= full; mask++) sizes[mask] = sizes[mask >> 1]! + (mask & 1);
+    const memo = new Float64Array(full + 1).fill(-1);
+    memo[0] = 0;
+    const cost = (mask: number): number => {
+        if (memo[mask]! >= 0) return memo[mask]!;
+        if (sizes[mask] === 1) return (memo[mask] = 1);
+        let best = Infinity;
+        for (const groups of partitions.values()) {
+            let total = sizes[mask]!;
+            for (const group of groups) {
+                const child = mask & group;
+                if (child === mask) { total = Infinity; break; }
+                total += cost(child);
+                if (total >= best) break;
+            }
+            best = Math.min(best, total);
+        }
+        return (memo[mask] = best);
+    };
+    for (const entry of scored) {
+        const groups = byWord.get(entry.word)!;
+        entry.expectedTurns = groups.includes(full) ? Infinity
+            : 1 + groups.reduce((sum, mask) => sum + cost(mask), 0) / candidates.length;
+    }
+    scored.sort((a, b) => a.expectedTurns! - b.expectedTurns! || a.expected - b.expected);
+};
+
+/**
  * 次に出す語の候補を、期待残候補数の小さい順に並べて返す。
  *
  * 探索語のプールには答えになり得ない語も入る。候補が同じ4文字を共有していて
@@ -268,6 +322,7 @@ export const rankGuesses = (dictionary: string[], candidates: string[]): ScoredG
         scored.push({ word, expected });
     }
     scored.sort((a, b) => a.expected - b.expected);
+    if (candidates.length <= ENDGAME_LIMIT) rankEndgame(scored, encodedCandidates);
     return scored;
 };
 
