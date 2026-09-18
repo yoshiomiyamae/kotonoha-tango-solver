@@ -102,6 +102,20 @@ describe('confirmedFromHistory', () => {
 describe('rankGuesses', () => {
     const best = (dictionary: string[], candidates: string[]) => rankGuesses(dictionary, candidates)[0]!.word;
 
+    test('11候補では、同じ1手目の分割でも2手後に多く絞れる語を選ぶ', () => {
+        const candidates = [
+            'チョウザイ', 'チョウセイ', 'チョウゼイ', 'チョウテイ', 'チョウアイ',
+            'チョウレイ', 'チョウヘイ', 'チョウケイ', 'チョウルイ', 'チョウエイ', 'チョウナイ',
+        ];
+        const ranking = rankGuesses(
+            ['エアメール', 'ムカエザケ', 'テイレベル', 'マゼアワセ', ...candidates],
+            candidates,
+        );
+        const oldChoice = ranking.find(entry => entry.word === 'エアメール')!;
+        expect(ranking[0]!.expected).toBe(oldChoice.expected);
+        expect(ranking[0]!.expectedAfterTwo!).toBeLessThan(oldChoice.expectedAfterTwo!);
+    });
+
     test('同じ分割でも、その後を短く解ける探索語を選ぶ', () => {
         const candidates = ['チョウザイ', 'チョウセイ', 'チョウゼイ', 'チョウテイ',
             'チョウアイ', 'チョウレイ', 'チョウヘイ', 'チョウケイ', 'チョウルイ', 'チョウエイ'];

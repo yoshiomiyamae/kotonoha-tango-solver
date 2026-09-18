@@ -24,6 +24,8 @@ export type ScoredGuess = {
     expected: number;
     /** 終盤のみ計算する、正解までの期待手数。 */
     expectedTurns?: number;
+    /** 11〜70候補の局面で、2手後に残る候補数の期待値。 */
+    expectedAfterTwo?: number;
 };
 
 export type Suggestion = {
@@ -47,6 +49,9 @@ const CANDIDATE_QUOTA = 50;
 const LIKELY_COUNT = 7;
 /** 部分集合の先読みは指数的に増えるため、小さい終盤に限定する。 */
 const ENDGAME_LIMIT = 10;
+const LOOKAHEAD_LIMIT = 70;
+const FIRST_STEP_CHOICES = 5;
+const SECOND_STEP_CHOICES = 100;
 
 const HIRAGANA_TO_KATAKANA_OFFSET = 0x60;
 const PATTERN_COUNT = 3 ** WORD_LENGTH;
@@ -277,6 +282,44 @@ const rankEndgame = (scored: ScoredGuess[], candidates: Uint16Array[]): void => 
     scored.sort((a, b) => a.expectedTurns! - b.expectedTurns! || a.expected - b.expected);
 };
 
+/** 11〜70候補で、上位5語のそれぞれについて次の色ごとに最善の2手目を探す。 */
+const rankTwoTurns = (scored: ScoredGuess[], candidates: string[], encodedCandidates: Uint16Array[]): void => {
+    const secondWords = new Set<string>([
+        ...scored.slice(0, SECOND_STEP_CHOICES).map(entry => entry.word),
+        ...candidates,
+    ]);
+    // 候補語は2手目で正解として当てられるよう、探索語に必ず含める。
+    const secondProbes = [...secondWords].map(encode);
+    const partition = new Int32Array(PATTERN_COUNT);
+    for (const entry of scored.slice(0, FIRST_STEP_CHOICES)) {
+        const first = encode(entry.word);
+        const groups = new Map<number, Uint16Array[]>();
+        for (const candidate of encodedCandidates) {
+            const code = feedbackCodeOf(first, candidate);
+            if (code === PATTERN_COUNT - 1) continue;
+            const group = groups.get(code) ?? [];
+            group.push(candidate);
+            groups.set(code, group);
+        }
+        let residual = 0;
+        for (const group of groups.values()) {
+            if (group.length === 1) continue;
+            let best = Infinity;
+            for (const second of secondProbes) {
+                partition.fill(0);
+                for (const answer of group) partition[feedbackCodeOf(second, answer)]!++;
+                let cost = group.includes(second) ? -1 : 0;
+                for (const size of partition) cost += size * size;
+                best = Math.min(best, cost);
+            }
+            residual += best;
+        }
+        entry.expectedAfterTwo = residual / candidates.length;
+    }
+    scored.sort((a, b) => (a.expectedAfterTwo ?? Infinity) - (b.expectedAfterTwo ?? Infinity)
+        || a.expected - b.expected);
+};
+
 /**
  * 次に出す語の候補を、期待残候補数の小さい順に並べて返す。
  *
@@ -323,6 +366,7 @@ export const rankGuesses = (dictionary: string[], candidates: string[]): ScoredG
     }
     scored.sort((a, b) => a.expected - b.expected);
     if (candidates.length <= ENDGAME_LIMIT) rankEndgame(scored, encodedCandidates);
+    else if (candidates.length <= LOOKAHEAD_LIMIT) rankTwoTurns(scored, candidates, encodedCandidates);
     return scored;
 };
 

@@ -15,6 +15,7 @@ This is a Kotonoha Tango solver - a word puzzle solver application for Japanese 
 - `npm run astro ...` - Run Astro CLI commands (e.g., `astro check` for type checking)
 - `bun test` - Run unit tests ([src/stores/solver.test.ts](src/stores/solver.test.ts))
 - `bun run simulate [games]` - Measure solver strength by simulating games against the whole dictionary (default 200). Run this after any change to the solver and check that average turns / 6-turn clear rate did not regress.
+- `bun run evaluate:history [games]` - Evaluate against the last completed daily answers from the public analysis CSV (default 200). The parser excludes the latest row even when it contains an answer, so today's answer is never used.
 
 Note: This project uses `bun.lock`, indicating Bun is the preferred package manager, though npm commands also work. `astro check` requires TypeScript 6.x - TypeScript 7's native compiler does not yet expose the API the Astro language server needs.
 
@@ -53,6 +54,10 @@ Note: This project uses `bun.lock`, indicating Bun is the preferred package mana
      partitions. Solved branches cost no additional guesses; non-progressing guesses are excluded.
      Expected remaining candidates breaks ties. This avoids choosing equally informative probes
      solely by CSV order when their later branches have different solution costs.
+   - With 11–70 candidates, `rankTwoTurns` compares the five best immediate guesses by splitting
+     each feedback outcome and finding the best second guess from the 100 best probes plus every
+     candidate. It minimizes expected remaining candidates after two guesses. At most 10 candidates
+     the exact endgame search above takes over; above 70 the original single-step score applies.
    - Words that cannot be the answer are allowed in the guess pool: when candidates share four
      characters, one word that splits them beats guessing them one at a time.
    - Pool width comes from `WORK_BUDGET / candidates.length`, not a candidate-count threshold, so
@@ -103,6 +108,8 @@ src/
 
 ### Current Solver Strength
 
-Measured with `bun run simulate` (200 games, seeded, 2026-09-18): **4.775 turns on average, 96.0% solved within 6 turns, 0 unsolved.** Timing on the development machine: 173ms for the opening ranking, then at most 218ms per turn. These sampled results are a regression baseline, not a guarantee for every answer. `チョウレイ` now takes 6 turns instead of 7.
+Measured with `bun run simulate` (200 games, seeded, 2026-09-18): **4.760 turns on average, 95.0% solved within 6 turns, 0 unsolved.** The preceding one-step version measured 4.775 turns and 96.0% within six, so the average improved while that six-turn metric declined on the random sample. Timing on the development machine: 195ms for the opening ranking, then at most 239ms per turn. These sampled results are a regression baseline, not a guarantee for every answer. `チョウレイ` still takes 6 turns.
 
 The solve still runs synchronously on the main thread, so those milliseconds are UI jank. `solver.ts` is import-free and I/O-free specifically so it can move into a Web Worker when that becomes worth doing.
+
+The public `analysis.csv` lists historical answers and also has a row for the current day. Never use its last row for training, evaluation, or a user-facing suggestion. Past answers can repeat, so do not remove them from the candidate pool. In a chronological test of the last 200 completed days (days 1502–1701), the new two-step solver averaged **4.910 turns with 95.0% solved within six**, versus 4.960 turns and 92.0% for the preceding one-step solver. An experimental bonus for answers seen on earlier days performed worse (4.995 turns and 91.0%), so it is not part of the product.
